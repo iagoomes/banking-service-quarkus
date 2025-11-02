@@ -1,1 +1,7 @@
-quarkus.http.port=8080
+quarkus:
+  http:
+    port: 8080
+
+  rest-client:
+    situacao-cadastral-api:
+        url: http://localhost:8181
