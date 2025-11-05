@@ -1,0 +1,544 @@
+openapi: 3.0.3
+info:
+  title: Banking Service API
+  description: API para gerenciamento de agências bancárias
+  version: 1.0.0
+  contact:
+    name: Iago Gomes
+    email: iagoomes@example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.banking.com
+    description: Production server
+
+tags:
+  - name: Agencia
+    description: Operações relacionadas a agências bancárias
+  - name: Conta
+    description: Operações relacionadas a contas bancárias
+
+paths:
+  /api/v1/agencias:
+    get:
+      tags:
+        - Agencia
+      summary: Lista todas as agências
+      description: Retorna uma lista de todas as agências bancárias cadastradas
+      operationId: listarAgencias
+      parameters:
+        - name: page
+          in: query
+          description: Número da página
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 0
+        - name: size
+          in: query
+          description: Tamanho da página
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        '200':
+          description: Lista de agências retornada com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgenciaResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Agencia
+      summary: Cria uma nova agência
+      description: Cria uma nova agência bancária no sistema
+      operationId: criarAgencia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgenciaRequest'
+      responses:
+        '201':
+          description: Agência criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgenciaResponse'
+        '400':
+          description: Requisição inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/agencias/{id}:
+    get:
+      tags:
+        - Agencia
+      summary: Busca agência por ID
+      description: Retorna os detalhes de uma agência específica
+      operationId: buscarAgenciaPorId
+      parameters:
+        - name: id
+          in: path
+          description: ID da agência
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Agência encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgenciaResponse'
+        '404':
+          description: Agência não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Agencia
+      summary: Atualiza uma agência
+      description: Atualiza os dados de uma agência existente
+      operationId: atualizarAgencia
+      parameters:
+        - name: id
+          in: path
+          description: ID da agência
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgenciaRequest'
+      responses:
+        '200':
+          description: Agência atualizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgenciaResponse'
+        '400':
+          description: Requisição inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Agência não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Agencia
+      summary: Remove uma agência
+      description: Remove uma agência do sistema
+      operationId: deletarAgencia
+      parameters:
+        - name: id
+          in: path
+          description: ID da agência
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Agência removida com sucesso
+        '404':
+          description: Agência não encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/contas:
+    get:
+      tags:
+        - Conta
+      summary: Lista todas as contas
+      description: Retorna uma lista de todas as contas bancárias
+      operationId: listarContas
+      parameters:
+        - name: agenciaId
+          in: query
+          description: Filtrar por ID da agência
+          required: false
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Lista de contas retornada com sucesso
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContaResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Conta
+      summary: Cria uma nova conta
+      description: Cria uma nova conta bancária
+      operationId: criarConta
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContaRequest'
+      responses:
+        '201':
+          description: Conta criada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContaResponse'
+        '400':
+          description: Requisição inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    AgenciaRequest:
+      type: object
+      required:
+        - numero
+        - nome
+        - endereco
+      properties:
+        numero:
+          type: string
+          description: Número da agência
+          example: "0001"
+          minLength: 4
+          maxLength: 4
+        nome:
+          type: string
+          description: Nome da agência
+          example: "Agência Centro"
+          minLength: 3
+          maxLength: 100
+        endereco:
+          $ref: '#/components/schemas/EnderecoRequest'
+        telefone:
+          type: string
+          description: Telefone de contato
+          example: "(11) 3333-4444"
+          pattern: '^\(\d{2}\) \d{4,5}-\d{4}$'
+        gerente:
+          type: string
+          description: Nome do gerente
+          example: "João Silva"
+          maxLength: 100
+
+    AgenciaResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID da agência
+          example: 1
+        numero:
+          type: string
+          description: Número da agência
+          example: "0001"
+        nome:
+          type: string
+          description: Nome da agência
+          example: "Agência Centro"
+        endereco:
+          $ref: '#/components/schemas/EnderecoResponse'
+        telefone:
+          type: string
+          description: Telefone de contato
+          example: "(11) 3333-4444"
+        gerente:
+          type: string
+          description: Nome do gerente
+          example: "João Silva"
+        situacaoCadastral:
+          type: string
+          description: Situação cadastral da agência
+          enum: [ATIVA, INATIVA, SUSPENSA]
+          example: ATIVA
+        dataCadastro:
+          type: string
+          format: date-time
+          description: Data de cadastro
+          example: "2024-01-15T10:30:00Z"
+        dataAtualizacao:
+          type: string
+          format: date-time
+          description: Data da última atualização
+          example: "2024-01-15T10:30:00Z"
+
+    EnderecoRequest:
+      type: object
+      required:
+        - cep
+        - logradouro
+        - numero
+        - bairro
+        - cidade
+        - estado
+      properties:
+        cep:
+          type: string
+          description: CEP
+          example: "01310-100"
+          pattern: '^\d{5}-\d{3}$'
+        logradouro:
+          type: string
+          description: Logradouro
+          example: "Avenida Paulista"
+          minLength: 3
+          maxLength: 150
+        numero:
+          type: string
+          description: Número
+          example: "1000"
+          maxLength: 10
+        complemento:
+          type: string
+          description: Complemento
+          example: "Sala 101"
+          maxLength: 50
+        bairro:
+          type: string
+          description: Bairro
+          example: "Bela Vista"
+          minLength: 3
+          maxLength: 100
+        cidade:
+          type: string
+          description: Cidade
+          example: "São Paulo"
+          minLength: 3
+          maxLength: 100
+        estado:
+          type: string
+          description: Estado (UF)
+          example: "SP"
+          minLength: 2
+          maxLength: 2
+
+    EnderecoResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID do endereço
+          example: 1
+        cep:
+          type: string
+          description: CEP
+          example: "01310-100"
+        logradouro:
+          type: string
+          description: Logradouro
+          example: "Avenida Paulista"
+        numero:
+          type: string
+          description: Número
+          example: "1000"
+        complemento:
+          type: string
+          description: Complemento
+          example: "Sala 101"
+        bairro:
+          type: string
+          description: Bairro
+          example: "Bela Vista"
+        cidade:
+          type: string
+          description: Cidade
+          example: "São Paulo"
+        estado:
+          type: string
+          description: Estado (UF)
+          example: "SP"
+
+    ContaRequest:
+      type: object
+      required:
+        - agenciaId
+        - numero
+        - tipo
+        - titular
+      properties:
+        agenciaId:
+          type: integer
+          format: int64
+          description: ID da agência
+          example: 1
+        numero:
+          type: string
+          description: Número da conta
+          example: "12345-6"
+          pattern: '^\d{5}-\d{1}$'
+        tipo:
+          type: string
+          description: Tipo da conta
+          enum: [CORRENTE, POUPANCA, SALARIO, INVESTIMENTO]
+          example: CORRENTE
+        titular:
+          type: string
+          description: Nome do titular
+          example: "Maria Santos"
+          minLength: 3
+          maxLength: 150
+
+    ContaResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: ID da conta
+          example: 1
+        agenciaId:
+          type: integer
+          format: int64
+          description: ID da agência
+          example: 1
+        numero:
+          type: string
+          description: Número da conta
+          example: "12345-6"
+        tipo:
+          type: string
+          description: Tipo da conta
+          enum: [CORRENTE, POUPANCA, SALARIO, INVESTIMENTO]
+          example: CORRENTE
+        titular:
+          type: string
+          description: Nome do titular
+          example: "Maria Santos"
+        saldo:
+          type: number
+          format: double
+          description: Saldo da conta
+          example: 1000.50
+        ativa:
+          type: boolean
+          description: Indica se a conta está ativa
+          example: true
+        dataCriacao:
+          type: string
+          format: date-time
+          description: Data de criação
+          example: "2024-01-15T10:30:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp do erro
+          example: "2024-01-15T10:30:00Z"
+        status:
+          type: integer
+          format: int32
+          description: Código de status HTTP
+          example: 400
+        error:
+          type: string
+          description: Tipo do erro
+          example: "Bad Request"
+        message:
+          type: string
+          description: Mensagem de erro
+          example: "Dados inválidos fornecidos"
+        path:
+          type: string
+          description: Path da requisição
+          example: "/api/v1/agencias"
+        errors:
+          type: array
+          description: Lista de erros de validação
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      properties:
+        field:
+          type: string
+          description: Campo com erro
+          example: "numero"
+        message:
+          type: string
+          description: Mensagem de validação
+          example: "O número deve ter exatamente 4 caracteres"
