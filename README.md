@@ -24,6 +24,7 @@ open http://localhost:8080/q/swagger-ui
 - **Quarkus 3.27.0** - Framework principal
 - **OpenAPI Generator 7.10.0** - Geração automática de código da API
 - **MapStruct 1.6.3** - Mapeamento entre DTOs e Entidades
+- **Hibernate Validator** - Validação automática de dados via Bean Validation
 - **JAX-RS** - Especificação REST do Jakarta EE
 - **SmallRye OpenAPI** - Swagger UI integrado
 

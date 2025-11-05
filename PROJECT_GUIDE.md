@@ -301,6 +301,222 @@ public interface AgenciaMapper {
 
 ---
 
+### Bean Validation com Hibernate Validator
+
+**Bean Validation** permite validar automaticamente os dados de entrada da API usando anotações Jakarta.
+
+#### Configuração
+
+```gradle
+dependencies {
+    // Validação automática de requests
+    implementation 'io.quarkus:quarkus-hibernate-validator'
+
+    // API de validação (já incluída pelo OpenAPI Generator)
+    implementation 'jakarta.validation:jakarta.validation-api:3.1.0'
+}
+```
+
+#### Como Funciona com OpenAPI Generator
+
+Quando você define validações no `openapi.yaml`:
+
+```yaml
+components:
+  schemas:
+    AgenciaRequest:
+      required:
+        - numero
+        - nome
+        - endereco
+      properties:
+        numero:
+          type: string
+          minLength: 4
+          maxLength: 4
+          description: Número da agência
+        nome:
+          type: string
+          minLength: 3
+          maxLength: 100
+        telefone:
+          type: string
+          pattern: '^\(\d{2}\) \d{4,5}-\d{4}$'
+```
+
+O OpenAPI Generator automaticamente gera as anotações:
+
+```java
+public class AgenciaRequest {
+    @NotNull
+    @Size(min=4, max=4)
+    private String numero;
+
+    @NotNull
+    @Size(min=3, max=100)
+    private String nome;
+
+    @Pattern(regexp="^\\(\\d{2}\\) \\d{4,5}-\\d{4}$")
+    private String telefone;
+
+    @NotNull
+    @Valid
+    private EnderecoRequest endereco;
+}
+```
+
+E a interface da API já inclui `@Valid`:
+
+```java
+@Path("/api/v1/agencias")
+public interface AgenciaApi {
+
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    Response criarAgencia(@Valid @NotNull AgenciaRequest agenciaRequest);
+}
+```
+
+#### ⚠️ IMPORTANTE: Não Redefina @Valid na Implementação
+
+**ERRADO** ❌:
+```java
+@ApplicationScoped
+public class AgenciaApiImpl implements AgenciaApi {
+
+    @Override
+    public Response criarAgencia(@Valid AgenciaRequest request) {  // ❌ NÃO FAÇA ISSO!
+        // ...
+    }
+}
+```
+
+**Erro que ocorre:**
+```
+jakarta.validation.ConstraintDeclarationException: HV000151:
+A method overriding another method must not redefine the parameter
+constraint configuration, but method AgenciaApiImpl#criarAgencia(AgenciaRequest)
+redefines the configuration of AgenciaApi#criarAgencia(AgenciaRequest).
+```
+
+**CORRETO** ✅:
+```java
+@ApplicationScoped
+public class AgenciaApiImpl implements AgenciaApi {
+
+    @Override
+    public Response criarAgencia(AgenciaRequest request) {  // ✅ Sem @Valid
+        // As validações são aplicadas automaticamente pela interface
+        var agencia = agenciaMapper.toEntity(request);
+        return Response.status(Status.CREATED).entity(agencia).build();
+    }
+}
+```
+
+**Por quê?** A interface `AgenciaApi` já tem `@Valid`. Adicionar novamente na implementação viola as regras do Hibernate Validator (HV000151).
+
+#### Testando as Validações
+
+**Requisição com dados inválidos:**
+```bash
+curl -X POST http://localhost:8080/api/v1/agencias \
+  -H "Content-Type: application/json" \
+  -d '{
+    "numero": "001",
+    "nome": "AB",
+    "telefone": "11-3333-4444"
+  }'
+```
+
+**Resposta automática (HTTP 400):**
+```json
+{
+  "title": "Constraint Violation",
+  "status": 400,
+  "violations": [
+    {
+      "field": "criarAgencia.agenciaRequest.numero",
+      "message": "tamanho deve ser entre 4 e 4"
+    },
+    {
+      "field": "criarAgencia.agenciaRequest.nome",
+      "message": "tamanho deve ser entre 3 e 100"
+    },
+    {
+      "field": "criarAgencia.agenciaRequest.telefone",
+      "message": "deve corresponder a \"^\\(\\d{2}\\) \\d{4,5}-\\d{4}$\""
+    },
+    {
+      "field": "criarAgencia.agenciaRequest.endereco",
+      "message": "não deve ser nulo"
+    }
+  ]
+}
+```
+
+**Requisição válida:**
+```bash
+curl -X POST http://localhost:8080/api/v1/agencias \
+  -H "Content-Type: application/json" \
+  -d '{
+    "numero": "0001",
+    "nome": "Agência Centro",
+    "endereco": {
+      "cep": "01310-100",
+      "logradouro": "Avenida Paulista",
+      "numero": "1000",
+      "bairro": "Bela Vista",
+      "cidade": "São Paulo",
+      "estado": "SP"
+    },
+    "telefone": "(11) 3333-4444",
+    "gerente": "João Silva"
+  }'
+```
+
+**Resposta (HTTP 201):**
+```json
+{
+  "id": 1,
+  "numero": "0001",
+  "nome": "Agência Centro",
+  "endereco": {
+    "cep": "01310-100",
+    "logradouro": "Avenida Paulista",
+    "numero": "1000",
+    "bairro": "Bela Vista",
+    "cidade": "São Paulo",
+    "estado": "SP"
+  },
+  "telefone": "(11) 3333-4444",
+  "gerente": "João Silva",
+  "dataCadastro": "2025-11-04T22:26:02.255984",
+  "dataAtualizacao": "2025-11-04T22:26:02.25599"
+}
+```
+
+#### Anotações Comuns de Validação
+
+| Anotação | OpenAPI | Descrição |
+|----------|---------|-----------|
+| `@NotNull` | `required: true` | Campo obrigatório |
+| `@NotBlank` | - | Não nulo e não vazio |
+| `@Size(min, max)` | `minLength`, `maxLength` | Tamanho de strings |
+| `@Min`, `@Max` | `minimum`, `maximum` | Valores numéricos |
+| `@Pattern` | `pattern` | Regex de validação |
+| `@Email` | `format: email` | Formato de email |
+| `@Valid` | Objetos aninhados | Validação em cascata |
+
+**Vantagens:**
+- ✅ Validação automática antes do código executar
+- ✅ Respostas de erro padronizadas
+- ✅ Zero código de validação manual
+- ✅ Sincronizado com especificação OpenAPI
+- ✅ Type-safe em tempo de compilação
+
+---
+
 ### Workflow Completo: OpenAPI + MapStruct
 
 ```
@@ -707,9 +923,15 @@ dependencies {
     // REST Client
     implementation 'io.quarkus:quarkus-rest-client-jackson'
 
+    // Validation
+    implementation 'io.quarkus:quarkus-hibernate-validator'
+
     // Database
     implementation 'io.quarkus:quarkus-hibernate-orm-panache'
     implementation 'io.quarkus:quarkus-jdbc-postgresql'
+
+    // OpenAPI / Swagger UI
+    implementation 'io.quarkus:quarkus-smallrye-openapi'
 
     // Observability
     implementation 'io.quarkus:quarkus-smallrye-health'
@@ -726,8 +948,10 @@ dependencies {
 **Equivalentes Spring Boot:**
 - `quarkus-rest` → `spring-boot-starter-web`
 - `quarkus-rest-jackson` → incluído em `spring-boot-starter-web`
+- `quarkus-hibernate-validator` → `spring-boot-starter-validation`
 - `quarkus-hibernate-orm-panache` → `spring-boot-starter-data-jpa`
 - `quarkus-jdbc-postgresql` → `postgresql` driver
+- `quarkus-smallrye-openapi` → `springdoc-openapi`
 - `quarkus-smallrye-health` → `spring-boot-starter-actuator`
 - `quarkus-micrometer` → `spring-boot-starter-actuator` + `micrometer`
 
