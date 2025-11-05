@@ -1,8 +1,96 @@
-# banking-service-quarkus
+# Banking Service - Quarkus
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+API RESTful para gerenciamento de agências bancárias, construída com Quarkus, OpenAPI Generator e MapStruct.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+Este projeto usa Quarkus, o framework Java supersônico e subatômico.
+
+## 🚀 Quick Start
+
+```bash
+# Executar em modo dev
+./gradlew quarkusDev
+
+# Acessar Swagger UI
+open http://localhost:8080/q/swagger-ui
+```
+
+## 📋 Pré-requisitos
+
+- Java 21
+- Gradle 9.0+
+
+## 🛠️ Tecnologias
+
+- **Quarkus 3.27.0** - Framework principal
+- **OpenAPI Generator 7.10.0** - Geração automática de código da API
+- **MapStruct 1.6.3** - Mapeamento entre DTOs e Entidades
+- **JAX-RS** - Especificação REST do Jakarta EE
+- **SmallRye OpenAPI** - Swagger UI integrado
+
+## 📚 Endpoints Disponíveis
+
+### Agências
+
+- `GET /api/v1/agencias` - Listar todas as agências
+- `GET /api/v1/agencias/{id}` - Buscar agência por ID
+- `POST /api/v1/agencias` - Criar nova agência
+- `PUT /api/v1/agencias/{id}` - Atualizar agência
+- `DELETE /api/v1/agencias/{id}` - Deletar agência
+
+### Contas
+
+- `GET /api/v1/contas` - Listar todas as contas
+- `POST /api/v1/contas` - Criar nova conta
+
+## 🌐 URLs Úteis
+
+| Recurso | URL |
+|---------|-----|
+| **Swagger UI** | http://localhost:8080/q/swagger-ui |
+| **OpenAPI Spec** | http://localhost:8080/q/openapi |
+| **Dev UI** | http://localhost:8080/q/dev |
+| **Health Check** | http://localhost:8080/q/health |
+
+## 📖 Exemplo de Uso
+
+**Criar uma agência:**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/agencias \
+  -H "Content-Type: application/json" \
+  -d '{
+    "numero": "0001",
+    "nome": "Agência Centro",
+    "endereco": {
+      "cep": "01310-100",
+      "logradouro": "Avenida Paulista",
+      "numero": "1000",
+      "bairro": "Bela Vista",
+      "cidade": "São Paulo",
+      "estado": "SP"
+    },
+    "telefone": "(11) 3333-4444",
+    "gerente": "João Silva"
+  }'
+```
+
+## 🏗️ Arquitetura
+
+Este projeto segue o padrão **API-First** com geração automática de código:
+
+```
+OpenAPI Spec (openapi.yaml) → OpenAPI Generator → Interfaces JAX-RS + DTOs
+                                                           ↓
+                              AgenciaApiImpl → AgenciaMapper → AgenciaService
+```
+
+**Documentação Completa**: Veja [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) para:
+- Comparação detalhada Spring Boot vs Quarkus
+- Configuração do OpenAPI Generator e MapStruct
+- Exemplos de código e best practices
+- Guia de produção e troubleshooting
+
+---
 
 ## Running the application in dev mode
 

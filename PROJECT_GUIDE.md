@@ -62,6 +62,308 @@ java -jar build/quarkus-app/quarkus-run.jar
 
 ---
 
+## Code Generation & Mapping
+
+### OpenAPI Generator Plugin
+
+Este projeto utiliza o **OpenAPI Generator** para gerar automaticamente a camada de API a partir de uma especificação OpenAPI.
+
+#### Configuração
+
+```gradle
+plugins {
+    id 'org.openapi.generator' version '7.10.0'
+}
+
+dependencies {
+    // Dependências necessárias para código gerado
+    implementation 'io.swagger.core.v3:swagger-annotations:2.2.26'
+    implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+    implementation 'jakarta.validation:jakarta.validation-api:3.1.0'
+}
+
+openApiGenerate {
+    generatorName = "jaxrs-spec"
+    inputSpec = "$rootDir/src/main/resources/openapi/openapi.yaml"
+    outputDir = "${layout.buildDirectory.get()}/generated/openapi"
+    apiPackage = "br.com.iagoomes.app.api"
+    modelPackage = "br.com.iagoomes.app.api.model"
+
+    configOptions = [
+        dateLibrary: "java8",
+        useBeanValidation: "true",
+        interfaceOnly: "true",
+        returnResponse: "true",
+        useJakartaEe: "true",
+        delegatePattern: "true"  // Padrão Delegate
+    ]
+}
+
+// Gera código antes da compilação
+compileJava.dependsOn tasks.openApiGenerate
+```
+
+#### Estrutura de Arquivos
+
+```
+src/main/resources/openapi/
+└── openapi.yaml                    # Especificação OpenAPI
+
+build/generated/openapi/src/main/java/
+└── br/com/iagoomes/app/api/
+    ├── AgenciaApi.java            # Interface gerada
+    ├── ContaApi.java              # Interface gerada
+    └── model/
+        ├── AgenciaRequest.java    # DTOs gerados
+        ├── AgenciaResponse.java
+        └── ...
+```
+
+#### Comandos
+
+```bash
+# Gerar código da API
+./gradlew openApiGenerate
+
+# Limpar e regenerar
+./gradlew clean openApiGenerate
+
+# Build completo (inclui geração)
+./gradlew build
+```
+
+#### Padrão Delegate
+
+Com `delegatePattern: true`, o generator cria interfaces JAX-RS que você implementa:
+
+**Interface Gerada** (`AgenciaApi.java`):
+```java
+@Path("/api/v1/agencias")
+public interface AgenciaApi {
+
+    @GET
+    @Path("/{id}")
+    @Produces({"application/json"})
+    Response buscarAgenciaPorId(@PathParam("id") Long id);
+
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    Response criarAgencia(@Valid AgenciaRequest request);
+}
+```
+
+**Implementação** (`AgenciaApiImpl.java`):
+```java
+@ApplicationScoped
+public class AgenciaApiImpl implements AgenciaApi {
+
+    @Inject
+    AgenciaService agenciaService;
+
+    @Inject
+    AgenciaMapper agenciaMapper;
+
+    @Override
+    public Response buscarAgenciaPorId(Long id) {
+        return agenciaService.buscarPorId(id)
+            .map(agenciaMapper::toResponse)
+            .map(response -> Response.ok(response).build())
+            .orElse(Response.status(Status.NOT_FOUND).build());
+    }
+
+    @Override
+    public Response criarAgencia(AgenciaRequest request) {
+        var agencia = agenciaMapper.toEntity(request);
+        var criada = agenciaService.criar(agencia);
+        var response = agenciaMapper.toResponse(criada);
+        return Response.status(Status.CREATED).entity(response).build();
+    }
+}
+```
+
+**Vantagens:**
+- ✅ API sempre sincronizada com a especificação OpenAPI
+- ✅ Validações automáticas via Bean Validation
+- ✅ Separação clara: Interface (contrato) vs Implementação (lógica)
+- ✅ Type-safe: Erros de compilação se a spec mudar
+- ✅ Documentação automática via Swagger
+
+---
+
+### MapStruct
+
+**MapStruct** é usado para mapeamento entre DTOs (gerados) e entidades de domínio.
+
+#### Configuração
+
+```gradle
+dependencies {
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+}
+
+// Configuração para processar anotações
+tasks.withType(JavaCompile).configureEach {
+    options.annotationProcessorPath = configurations.annotationProcessor
+}
+```
+
+#### Uso Básico
+
+```java
+@Mapper(
+    componentModel = "cdi",  // Integração com CDI
+    nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE
+)
+public interface AgenciaMapper {
+
+    // Request -> Entity
+    Agencia toEntity(AgenciaRequest request);
+
+    // Entity -> Response
+    AgenciaResponse toResponse(Agencia agencia);
+
+    // Update entity (ignora nulls)
+    void updateEntityFromRequest(
+        AgenciaRequest request,
+        @MappingTarget Agencia agencia
+    );
+}
+```
+
+**O MapStruct gera automaticamente**:
+
+```java
+@ApplicationScoped
+public class AgenciaMapperImpl implements AgenciaMapper {
+
+    @Override
+    public Agencia toEntity(AgenciaRequest request) {
+        Agencia agencia = new Agencia();
+        agencia.setNumero(request.getNumero());
+        agencia.setNome(request.getNome());
+        // ... mapeia todos os campos automaticamente
+        return agencia;
+    }
+
+    // ... outras implementações
+}
+```
+
+#### Mapeamentos Customizados
+
+```java
+@Mapper(componentModel = "cdi")
+public interface AgenciaMapper {
+
+    // Mapeamento com transformação customizada
+    @Mapping(target = "situacaoCadastral",
+             expression = "java(mapSituacao(request))")
+    Agencia toEntity(AgenciaRequest request);
+
+    default String mapSituacao(AgenciaRequest request) {
+        // Lógica customizada
+        return "ATIVA";
+    }
+}
+```
+
+#### Vantagens vs Mapeamento Manual
+
+**Manual** (Evite!):
+```java
+public AgenciaResponse toResponse(Agencia agencia) {
+    AgenciaResponse response = new AgenciaResponse();
+    response.setId(agencia.getId());
+    response.setNumero(agencia.getNumero());
+    response.setNome(agencia.getNome());
+    // ... 20 linhas de boilerplate
+    return response;
+}
+```
+
+**MapStruct**:
+```java
+@Mapper(componentModel = "cdi")
+public interface AgenciaMapper {
+    AgenciaResponse toResponse(Agencia agencia);
+    // ✨ Implementação gerada automaticamente!
+}
+```
+
+**Vantagens:**
+- ✅ Zero boilerplate
+- ✅ Type-safe em tempo de compilação
+- ✅ Performance (sem reflection)
+- ✅ Fácil manutenção
+- ✅ Suporte a mapeamentos complexos
+
+---
+
+### Workflow Completo: OpenAPI + MapStruct
+
+```
+1. Definir API          →  src/main/resources/openapi/openapi.yaml
+   (OpenAPI Spec)
+                            ↓
+2. Gerar Interfaces     →  ./gradlew openApiGenerate
+   (OpenAPI Generator)
+                            ↓
+3. Criar Mapper         →  AgenciaMapper.java (interface)
+   (MapStruct)
+                            ↓
+4. Implementar API      →  AgenciaApiImpl.java
+   (Delegate Pattern)       implements AgenciaApi
+                            ↓
+5. Lógica de Negócio    →  AgenciaService.java
+   (Service Layer)
+```
+
+**Exemplo de Fluxo:**
+
+```
+POST /api/v1/agencias
+{
+  "numero": "0001",
+  "nome": "Agência Centro"
+}
+
+            ↓
+
+[AgenciaApiImpl]
+    ├─ Recebe AgenciaRequest (gerado pelo OpenAPI)
+    ├─ Valida automaticamente (Bean Validation)
+    ↓
+
+[AgenciaMapper]
+    ├─ toEntity(request) → Agencia
+    ↓
+
+[AgenciaService]
+    ├─ criar(agencia) → lógica de negócio
+    ↓
+
+[AgenciaMapper]
+    ├─ toResponse(agencia) → AgenciaResponse
+    ↓
+
+[AgenciaApiImpl]
+    └─ Response.status(201).entity(response)
+
+            ↓
+
+HTTP 201 Created
+{
+  "id": 1,
+  "numero": "0001",
+  "nome": "Agência Centro",
+  "dataCadastro": "2024-01-15T10:30:00Z"
+}
+```
+
+---
+
 ## Diferenças: Spring Boot vs Quarkus (neste projeto)
 
 ### 1. Estrutura de Projeto
@@ -1145,25 +1447,250 @@ docker push myregistry.com/banking-service:1.0.0-native
 
 ---
 
+## Como Usar Este Projeto
+
+### 1. Executar em Modo Dev
+
+```bash
+./gradlew quarkusDev
+```
+
+### 2. Acessar Swagger UI
+
+Após iniciar, acesse:
+
+- **Swagger UI**: http://localhost:8080/q/swagger-ui
+- **OpenAPI Spec**: http://localhost:8080/q/openapi
+- **Dev UI**: http://localhost:8080/q/dev
+- **Health Check**: http://localhost:8080/q/health
+
+### 3. Testar Endpoints
+
+**Criar Agência:**
+```bash
+curl -X POST http://localhost:8080/api/v1/agencias \
+  -H "Content-Type: application/json" \
+  -d '{
+    "numero": "0001",
+    "nome": "Agência Centro",
+    "endereco": {
+      "cep": "01310-100",
+      "logradouro": "Avenida Paulista",
+      "numero": "1000",
+      "bairro": "Bela Vista",
+      "cidade": "São Paulo",
+      "estado": "SP"
+    },
+    "telefone": "(11) 3333-4444",
+    "gerente": "João Silva"
+  }'
+```
+
+**Listar Agências:**
+```bash
+curl http://localhost:8080/api/v1/agencias
+```
+
+**Buscar por ID:**
+```bash
+curl http://localhost:8080/api/v1/agencias/1
+```
+
+**Atualizar Agência:**
+```bash
+curl -X PUT http://localhost:8080/api/v1/agencias/1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nome": "Agência Centro - Atualizada",
+    "telefone": "(11) 3333-5555"
+  }'
+```
+
+**Deletar Agência:**
+```bash
+curl -X DELETE http://localhost:8080/api/v1/agencias/1
+```
+
+### 4. Modificar a API
+
+**Passos para adicionar novos endpoints:**
+
+1. **Edite o OpenAPI spec**:
+   ```bash
+   vim src/main/resources/openapi/openapi.yaml
+   ```
+
+2. **Regenere o código**:
+   ```bash
+   ./gradlew clean openApiGenerate
+   ```
+
+3. **Implemente a interface gerada** em `AgenciaApiImpl.java`
+
+4. **Build e teste**:
+   ```bash
+   ./gradlew build
+   ./gradlew quarkusDev
+   ```
+
+### 5. Estrutura do Código Gerado
+
+```
+build/generated/openapi/src/main/java/
+└── br/com/iagoomes/app/api/
+    ├── AgenciaApi.java          # Interface JAX-RS (gerada)
+    ├── ContaApi.java            # Interface JAX-RS (gerada)
+    └── model/
+        ├── AgenciaRequest.java  # DTO com Builder (gerado)
+        ├── AgenciaResponse.java # DTO com Builder (gerado)
+        └── ...
+```
+
+### 6. Exemplo de Uso do Builder Pattern
+
+Os DTOs gerados incluem Builder Pattern:
+
+```java
+AgenciaRequest agencia = AgenciaRequest.builder()
+    .numero("0001")
+    .nome("Agência Centro")
+    .telefone("(11) 3333-4444")
+    .endereco(EnderecoRequest.builder()
+        .cep("01310-100")
+        .logradouro("Avenida Paulista")
+        .numero("1000")
+        .build())
+    .build();
+```
+
+---
+
+## Arquitetura do Projeto
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    OpenAPI Spec                          │
+│              (openapi.yaml - fonte única)                │
+└─────────────────────┬───────────────────────────────────┘
+                      │
+                      ▼
+        ┌─────────────────────────────┐
+        │   OpenAPI Generator Plugin   │
+        │   (jaxrs-spec generator)     │
+        └──────────┬──────────────────┘
+                   │
+                   ├──► Interfaces JAX-RS (AgenciaApi)
+                   └──► DTOs com Builders (AgenciaRequest/Response)
+
+┌────────────────────┴────────────────────┐
+│                                          │
+▼                                          ▼
+┌──────────────────┐            ┌──────────────────┐
+│  AgenciaApiImpl  │            │  AgenciaMapper   │
+│  (implementação) │────────────│   (MapStruct)    │
+└────────┬─────────┘            └──────────────────┘
+         │                               │
+         ▼                               ▼
+┌──────────────────┐            ┌──────────────────┐
+│ AgenciaService   │────────────│  Agencia Entity  │
+│ (lógica negócio) │            │  (domínio)       │
+└──────────────────┘            └──────────────────┘
+```
+
+**Fluxo de Requisição:**
+1. Cliente → HTTP Request
+2. **AgenciaApi** (interface gerada) → valida request
+3. **AgenciaApiImpl** → implementa interface
+4. **AgenciaMapper** → converte DTO ↔ Entity
+5. **AgenciaService** → lógica de negócio
+6. **Agencia Entity** → modelo de domínio
+7. Response → Cliente
+
+---
+
+## Tecnologias Utilizadas
+
+| Tecnologia | Versão | Propósito |
+|-----------|--------|-----------|
+| **Quarkus** | 3.27.0 | Framework principal |
+| **Gradle** | 9.0.0 | Build tool |
+| **Java** | 21 | Linguagem |
+| **OpenAPI Generator** | 7.10.0 | Geração de código da API |
+| **MapStruct** | 1.6.3 | Mapeamento DTO ↔ Entity |
+| **Jakarta EE** | 10+ | Especificações (JAX-RS, Bean Validation) |
+| **SmallRye OpenAPI** | - | Swagger UI integrado |
+
+---
+
 ## Próximos Passos
 
-### Áreas a explorar:
-- [ ] Reactive Programming (Mutiny vs WebFlux)
-- [ ] Security (Quarkus OIDC vs Spring Security)
+### Melhorias Recomendadas:
+- [ ] Adicionar persistência com Panache Repository
+- [ ] Implementar paginação nos endpoints de listagem
+- [ ] Adicionar autenticação/autorização (JWT, OIDC)
+- [ ] Criar testes unitários e de integração
+- [ ] Adicionar tratamento de exceções global
+- [ ] Implementar cache (Redis, Caffeine)
+- [ ] Configurar CI/CD
+- [ ] Adicionar Docker/Docker Compose
+- [ ] Compilação nativa (GraalVM)
+
+### Áreas a Explorar:
+- [ ] Reactive Programming (Mutiny)
+- [ ] Security (Quarkus OIDC)
 - [ ] Messaging (Kafka, RabbitMQ)
-- [ ] Caching (Infinispan vs Spring Cache)
 - [ ] Observability (Tracing, Metrics)
 - [ ] Kubernetes Integration
-- [ ] Native Image Build
 
 ---
 
 ## Recursos Úteis
 
-- [Quarkus Dev UI](http://localhost:8080/q/dev/) - Disponível em dev mode
+### Documentação Oficial
+- [Quarkus Guides](https://quarkus.io/guides/)
+- [OpenAPI Generator](https://openapi-generator.tech/)
+- [MapStruct Reference](https://mapstruct.org/documentation/stable/reference/html/)
+
+### Dev Tools
+- **Swagger UI**: http://localhost:8080/q/swagger-ui
+- **Dev UI**: http://localhost:8080/q/dev
+- **Health Check**: http://localhost:8080/q/health
+- **Metrics**: http://localhost:8080/q/metrics
+
+### Cheat Sheets
 - [Quarkus Cheat Sheet](https://lordofthejars.github.io/quarkus-cheat-sheet/)
-- [Spring to Quarkus Migration Guide](https://quarkus.io/guides/spring-di)
+- [JAX-RS Annotations](https://dennis-xlc.gitbooks.io/restful-java-with-jax-rs-2-0-2rd-edition/content/en/part1/chapter3/jax_rs_injection.html)
 
 ---
 
-**Última atualização**: 2025-11-01
+## Troubleshooting
+
+### OpenAPI Generator não gera código
+```bash
+./gradlew clean openApiGenerate --info
+```
+
+### Build falha com erro de MapStruct
+Verifique se a ordem de processamento está correta:
+```bash
+./gradlew clean build
+```
+
+### Swagger UI não aparece
+Certifique-se que a dependência está adicionada:
+```gradle
+implementation 'io.quarkus:quarkus-smallrye-openapi'
+```
+
+### Hot Reload não funciona
+Reinicie o Quarkus Dev:
+```bash
+# Pressione 'r' no terminal do quarkusDev
+# ou Ctrl+C e rode novamente
+./gradlew quarkusDev
+```
+
+---
+
+**Última atualização**: 2025-11-04
+**Versão**: 1.0.0-SNAPSHOT
