@@ -85,11 +85,22 @@ OpenAPI Spec (openapi.yaml) → OpenAPI Generator → Interfaces JAX-RS + DTOs
                               AgenciaApiImpl → AgenciaMapper → AgenciaService
 ```
 
-**Documentação Completa**: Veja [`PROJECT_GUIDE.md`](PROJECT_GUIDE.md) para:
-- Comparação detalhada Spring Boot vs Quarkus
-- Configuração do OpenAPI Generator e MapStruct
-- Exemplos de código e best practices
-- Guia de produção e troubleshooting
+## 📖 Documentação
+
+- **[PROJECT_GUIDE.md](PROJECT_GUIDE.md)** - Guia completo do projeto
+  - Comparação detalhada Spring Boot vs Quarkus
+  - Configuração do OpenAPI Generator e MapStruct
+  - Bean Validation com Hibernate Validator
+  - Exemplos de código e best practices
+  - Guia de produção e troubleshooting
+
+- **[MANUAL_SETUP_GUIDE.md](MANUAL_SETUP_GUIDE.md)** - Setup manual sem quarkus.io
+  - Como criar projeto Quarkus do zero
+  - Descobrir versão LTS manualmente
+  - Configuração para ambientes corporativos (proxy, Nexus)
+  - Trabalhar offline com cache de dependências
+
+- **[DEBUG_GUIDE.md](DEBUG_GUIDE.md)** - Guia de debugging
 
 ---
 
